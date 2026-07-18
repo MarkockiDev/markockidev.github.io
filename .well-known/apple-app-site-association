@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["CBGR43HVMN.com.markockidev.yoink.app"],
+        "components": [
+          { "/": "/c", "comment": "Yoink Connect handshake link" },
+          { "/": "/c/*", "comment": "Trailing-slash and subpath variants" }
+        ]
+      }
+    ]
+  }
+}
