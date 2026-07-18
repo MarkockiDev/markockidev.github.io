@@ -48,16 +48,29 @@
     <div class="logo" id="badge" aria-hidden="true">Y</div>
     <h1 id="headline">Someone wants to swap cards with you</h1>
     <p class="lede">Yoink swaps digital business cards in person. One scan, both ways.
-       Free, private, and nothing you exchange ever touches a server.</p>
+       Free and private. Cards swap directly between phones.</p>
     <a class="cta" href="https://apps.apple.com/app/id6787942907">Get Yoink on the App&nbsp;Store</a>
     <p class="note">Connect codes are only live while the other person's screen is open.
        After installing, ask them to show their code again and scan it from inside Yoink.</p>
   </main>
   <script>
-    // The payload rides in the URL fragment, so it never reached the server.
+    // The payload rides in the URL fragment, so it never reached this server.
     // Decode locally to greet with the host's first name and show a monogram
     // avatar in their card color (same look as the app). Any failure falls
     // back silently to the generic headline and Y logo.
+    //
+    // When the payload carries p:true, the host's app has published a small
+    // preview photo to Apple's CloudKit public database under the session
+    // token; fetch it (anonymous read, plain REST) and swap it into the
+    // circle. Retries cover the moment between the QR appearing and the
+    // upload finishing. Any failure keeps the monogram.
+    var CK_CONTAINER = "iCloud.com.markockidev.yoink.app";
+    // CloudKit Console -> API Access. Leave "" to disable photo fetch.
+    var CK_TOKENS = [
+      { env: "production",  token: "" },
+      { env: "development", token: "" }
+    ];
+
     try {
       var f = location.hash.slice(1);
       if (f) {
@@ -86,9 +99,72 @@
           badge.className = "monogram";
           badge.style.background = hex;
           badge.style.color = isLight ? "#000" : "#fff";
+
+          if (json.p === true && json.t) { fetchPhoto(json.t, hex); }
         }
       }
     } catch (e) { /* malformed fragment: keep generic copy */ }
+
+    function fetchPhoto(recordName, ringHex) {
+      var attempts = [];
+      CK_TOKENS.forEach(function (c) {
+        if (c.token) { attempts.push(c); }
+      });
+      if (!attempts.length) return;
+      var round = 0;
+      tryRound();
+
+      function tryRound() {
+        if (round >= 3) return;             // give up quietly: monogram stays
+        round += 1;
+        next(0);
+
+        function next(i) {
+          if (i >= attempts.length) {        // all envs missed: upload may still
+            setTimeout(tryRound, 2000);      // be in flight, try again shortly
+            return;
+          }
+          var c = attempts[i];
+          fetch("https://api.apple-cloudkit.com/database/1/" + CK_CONTAINER +
+                "/" + c.env + "/public/records/lookup?ckAPIToken=" +
+                encodeURIComponent(c.token), {
+            method: "POST",
+            body: JSON.stringify({ records: [{ recordName: recordName }] })
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var rec = data.records && data.records[0];
+            var asset = rec && rec.fields && rec.fields.photo && rec.fields.photo.value;
+            if (asset && asset.downloadURL) {
+              showPhoto(asset.downloadURL.replace("${f}", "photo.jpg"), ringHex);
+            } else {
+              next(i + 1);
+            }
+          })
+          .catch(function () { next(i + 1); });
+        }
+      }
+
+      function showPhoto(url, ring) {
+        var img = new Image();
+        img.onload = function () {
+          var badge = document.getElementById("badge");
+          badge.textContent = "";
+          badge.className = "monogram";
+          badge.style.background = "transparent";
+          img.alt = "";
+          img.style.width = "88px";
+          img.style.height = "88px";
+          img.style.borderRadius = "50%";
+          img.style.objectFit = "cover";
+          img.style.display = "block";
+          img.style.border = "3px solid " + ring;
+          img.style.boxSizing = "border-box";
+          badge.appendChild(img);
+        };
+        img.src = url;
+      }
+    }
   </script>
 </body>
 </html>
