@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="apple-itunes-app" content="app-id=6787942907">
+<script>
+  // Smart App Banner: when a payload is present, hand the full link to the
+  // app so the banner's OPEN button (shown when Yoink is installed) lands in
+  // the join flow via the app's onOpenURL — not just a cold app launch. The
+  // meta must exist during parse, hence document.write instead of DOM insert.
+  document.write('<meta name="apple-itunes-app" content="app-id=6787942907' +
+    (location.hash ? ', app-argument=' + location.href.replace(/"/g, "") : "") + '">');
+</script>
 <meta name="robots" content="noindex">
 <title>Yoink: swap cards</title>
 <style>
